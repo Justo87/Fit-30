@@ -1,3 +1,4 @@
+// FIT30 - 30 Days Transformation App
 import React, { useState, useEffect } from 'react';
 import { auth, signIn, signOut, db, isFirebaseConfigured } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
