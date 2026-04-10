@@ -2,23 +2,21 @@
   "name": "FIT30 - 30 Días de Transformación",
   "short_name": "FIT30",
   "description": "Tu coach personal para una transformación de 30 días.",
-  "start_url": "/Fit-30/",
+  "start_url": "/",
   "display": "standalone",
-  "background_color": "#0a0a0a",
-  "theme_color": "#ffffff",
+  "background_color": "#f97316",
+  "theme_color": "#f97316",
   "icons": [
     {
-      "src": "https://img.icons8.com/ios-filled/512/FFFFFF/dumbbell.png",
+      "src": "https://img.icons8.com/ios-filled/512/FFFFFF/dumbbell.png?v=2",
       "sizes": "512x512",
       "type": "image/png",
-      "background_color": "#f97316",
       "purpose": "any maskable"
     },
     {
-      "src": "https://img.icons8.com/ios-filled/192/FFFFFF/dumbbell.png",
+      "src": "https://img.icons8.com/ios-filled/192/FFFFFF/dumbbell.png?v=2",
       "sizes": "192x192",
-      "type": "image/png",
-      "background_color": "#f97316"
+      "type": "image/png"
     }
   ]
 }
