@@ -33,6 +33,15 @@
 //   - completed: boolean (required)
 //   - duration: number (required)
 //
+// Collection: users/{userId}/challengeLogs
+// Document ID: {logId}
+// Fields:
+//   - uid: string (required)
+//   - day: number (required)
+//   - date: string (required, ISO 8601)
+//   - completed: boolean (required)
+//   - title: string (required)
+//
 // ===============================================================
 
 rules_version = '2';
@@ -75,6 +84,15 @@ service cloud.firestore {
              data.duration is number;
     }
 
+    function isValidChallengeLog(data) {
+      return data.keys().hasAll(['uid', 'day', 'date', 'completed', 'title']) &&
+             data.uid is string &&
+             data.day is number &&
+             data.date is string &&
+             data.completed is bool &&
+             data.title is string;
+    }
+
     function isValidWorkout(data) {
       return data.keys().hasAll(['day', 'title', 'exercises']) &&
              data.day is number &&
@@ -103,6 +121,13 @@ service cloud.firestore {
         allow read: if isOwner(userId);
         allow create: if isOwner(userId) && isValidWorkoutLog(request.resource.data);
         allow update: if isOwner(userId) && isValidWorkoutLog(request.resource.data);
+        allow delete: if isOwner(userId);
+      }
+
+      match /challengeLogs/{logId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidChallengeLog(request.resource.data);
+        allow update: if isOwner(userId) && isValidChallengeLog(request.resource.data);
         allow delete: if isOwner(userId);
       }
     }

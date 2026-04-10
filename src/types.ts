@@ -26,11 +26,20 @@ export interface WorkoutLog {
   duration: number;
 }
 
+export interface ChallengeLog {
+  id?: string;
+  day: number;
+  date: string;
+  completed: boolean;
+  title: string;
+}
+
 export interface Exercise {
   name: string;
   reps: string;
   sets: number;
   videoUrls: string[];
+  imageUrl?: string;
   description: string;
 }
 
@@ -38,4 +47,9 @@ export interface DailyWorkout {
   day: number;
   title: string;
   exercises: Exercise[];
+  dailyChallenge?: {
+    title: string;
+    description: string;
+    icon: string;
+  };
 }

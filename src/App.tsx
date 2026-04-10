@@ -20,8 +20,18 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [firebaseError, setFirebaseError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (loading) {
+        setLoadingTimeout(true);
+      }
+    }, 8000); // Show retry button after 8 seconds
+    return () => clearTimeout(timer);
+  }, [loading]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -32,11 +42,7 @@ export default function App() {
       }
     }, (error) => {
       console.error("Auth State Error:", error);
-      if (error.message.includes('configuration-not-found')) {
-        setFirebaseError("Error de configuración: El Project ID o la API Key no coinciden. Por favor, verifica los datos en Firebase.");
-      } else {
-        setFirebaseError(error.message);
-      }
+      setFirebaseError(error.message);
       setLoading(false);
     });
     return () => unsubscribe();
@@ -45,30 +51,45 @@ export default function App() {
   useEffect(() => {
     if (user) {
       console.log("Fetching profile for user:", user.uid);
-      
-      // Initial fetch with getDoc for robustness
-      getDoc(doc(db, 'users', user.uid)).then((docSnap) => {
-        if (docSnap.exists()) {
-          console.log("Initial profile fetch found data:", docSnap.data());
-          setProfile(docSnap.data() as UserProfile);
-          setLoading(false);
+      let isMounted = true;
+
+      // Use a combination of getDoc (fast initial) and onSnapshot (real-time)
+      const fetchProfile = async () => {
+        try {
+          const docSnap = await getDoc(doc(db, 'users', user.uid));
+          if (isMounted) {
+            if (docSnap.exists()) {
+              setProfile(docSnap.data() as UserProfile);
+            } else {
+              setProfile(null);
+            }
+            setLoading(false);
+          }
+        } catch (error) {
+          console.error("Error fetching profile:", error);
+          // Don't set loading false here, let onSnapshot try or timeout handle it
         }
-      }).catch(err => console.error("Initial profile fetch error:", err));
+      };
+
+      fetchProfile();
 
       const unsubscribe = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
+        if (!isMounted) return;
         if (docSnap.exists()) {
-          console.log("Profile snapshot update:", docSnap.data());
           setProfile(docSnap.data() as UserProfile);
         } else {
-          console.log("No profile found in snapshot.");
           setProfile(null);
         }
         setLoading(false);
       }, (error) => {
         console.error("Profile Snapshot Error:", error);
-        setLoading(false);
+        if (isMounted) setLoading(false);
       });
-      return () => unsubscribe();
+
+      return () => {
+        isMounted = false;
+        unsubscribe();
+      };
     }
   }, [user]);
 
@@ -121,9 +142,46 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-950 text-white">
-        <Loader2 className="w-12 h-12 animate-spin text-orange-500" />
-        <p className="mt-4 font-medium tracking-tight">Cargando tu progreso...</p>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-950 text-white p-6 text-center">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex flex-col items-center"
+        >
+          <Loader2 className="w-12 h-12 animate-spin text-orange-500 mb-4" />
+          <p className="font-medium tracking-tight">Cargando tu progreso...</p>
+          
+          {loadingTimeout && (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-8 space-y-4"
+            >
+              <p className="text-sm text-neutral-500 max-w-xs">
+                Esto está tardando más de lo habitual. Podría ser un problema de conexión con la base de datos.
+              </p>
+              <div className="flex flex-col space-y-2">
+                <Button 
+                  onClick={() => window.location.reload()} 
+                  variant="outline"
+                  className="border-neutral-800 text-white"
+                >
+                  Recargar aplicación
+                </Button>
+                <Button 
+                  onClick={() => {
+                    setLoading(false);
+                    if (!profile) setProfile(null); // Force onboarding if we really can't load
+                  }} 
+                  variant="ghost"
+                  className="text-neutral-600 text-xs"
+                >
+                  Omitir espera (podría reiniciar datos)
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </motion.div>
       </div>
     );
   }

@@ -6,9 +6,8 @@ import { doc, updateDoc, collection, addDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'motion/react';
-import { CheckCircle2, ChevronRight, ChevronLeft, Play, Info, Trophy, Loader2, Mic, MonitorPlay } from 'lucide-react';
-import VoiceCoach from '@/components/VoiceCoach';
-import ExerciseAnimation from '@/components/ExerciseAnimation';
+import { CheckCircle2, ChevronRight, ChevronLeft, Play, Info, Trophy, Loader2, MonitorPlay, Image as ImageIcon } from 'lucide-react';
+import { FALLBACK_IMAGE, EXERCISE_REPOSITORY } from '@/constants/exercises';
 
 export default function WorkoutView({ profile }: { profile: UserProfile }) {
   const [workout, setWorkout] = useState<DailyWorkout | null>(null);
@@ -16,7 +15,8 @@ export default function WorkoutView({ profile }: { profile: UserProfile }) {
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [showCoach, setShowCoach] = useState(false);
+  const [showVideo, setShowVideo] = useState(false);
+  const [resetting, setResetting] = useState(false);
   // Store animation preference per exercise index
   const [exercisePreferences, setExercisePreferences] = useState<Record<number, boolean>>({});
 
@@ -73,8 +73,6 @@ export default function WorkoutView({ profile }: { profile: UserProfile }) {
     }
   };
 
-  const [resetting, setResetting] = useState(false);
-
   const handleNextDay = async () => {
     setResetting(true);
     try {
@@ -83,7 +81,10 @@ export default function WorkoutView({ profile }: { profile: UserProfile }) {
       await updateDoc(userRef, {
         planDay: nextDay > 30 ? 30 : nextDay
       });
-      window.location.reload();
+      // No reload needed, onSnapshot in App.tsx will update the profile
+      // We just need to reset the local state of this view
+      setCompleted(false);
+      setCurrentExerciseIndex(0);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${profile.uid}`);
     } finally {
@@ -131,14 +132,20 @@ export default function WorkoutView({ profile }: { profile: UserProfile }) {
   }
 
   const currentExercise = workout?.exercises[currentExerciseIndex];
-  const videoUrls = currentExercise?.videoUrls || [];
-  const showAnimation = exercisePreferences[currentExerciseIndex] || false;
+  
+  // Better matching logic
+  const exerciseNameLower = currentExercise?.name.toLowerCase() || '';
+  const repoKey = Object.keys(EXERCISE_REPOSITORY).find(key => {
+    const keyLower = key.toLowerCase();
+    return exerciseNameLower.includes(keyLower) || keyLower.includes(exerciseNameLower);
+  });
+  
+  const repoInfo = repoKey ? EXERCISE_REPOSITORY[repoKey] : null;
+  const imageUrl = repoInfo?.imageUrl || currentExercise?.imageUrl || FALLBACK_IMAGE;
+  const videoUrls = repoInfo?.videoUrl ? [repoInfo.videoUrl] : (currentExercise?.videoUrls || []);
 
-  const toggleAnimation = () => {
-    setExercisePreferences(prev => ({
-      ...prev,
-      [currentExerciseIndex]: !showAnimation
-    }));
+  const toggleMedia = () => {
+    setShowVideo(!showVideo);
   };
 
   return (
@@ -149,38 +156,17 @@ export default function WorkoutView({ profile }: { profile: UserProfile }) {
           <Button 
             variant="ghost" 
             size="icon" 
-            onClick={toggleAnimation}
-            className={`rounded-full ${showAnimation ? 'text-orange-500 bg-orange-500/10' : 'text-neutral-500'}`}
-            title="Cambiar entre Video y Modelo 3D"
+            onClick={toggleMedia}
+            className={`rounded-full ${showVideo ? 'text-orange-500 bg-orange-500/10' : 'text-neutral-500'}`}
+            title="Cambiar entre Imagen y Video"
           >
-            <MonitorPlay className="w-5 h-5" />
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={() => setShowCoach(!showCoach)}
-            className={`rounded-full ${showCoach ? 'text-orange-500 bg-orange-500/10' : 'text-neutral-500'}`}
-          >
-            <Mic className="w-5 h-5" />
+            {showVideo ? <ImageIcon className="w-5 h-5" /> : <MonitorPlay className="w-5 h-5" />}
           </Button>
           <span className="text-xs font-mono text-neutral-500 uppercase tracking-widest flex items-center">
             {currentExerciseIndex + 1} / {workout?.exercises.length}
           </span>
         </div>
       </div>
-
-      <AnimatePresence>
-        {showCoach && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <VoiceCoach />
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <AnimatePresence mode="wait">
         <motion.div
@@ -192,15 +178,20 @@ export default function WorkoutView({ profile }: { profile: UserProfile }) {
         >
           <Card className="bg-neutral-900 border-neutral-800 overflow-hidden">
             <div className="aspect-video bg-neutral-800 flex items-center justify-center relative group">
-              {showAnimation ? (
+              {!showVideo ? (
                 <div className="relative w-full h-full">
-                  <ExerciseAnimation type={currentExercise?.name || ''} />
+                  <img 
+                    src={imageUrl} 
+                    alt={currentExercise?.name} 
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
                   <div className="absolute top-2 right-2 flex space-x-2">
                     <Button 
                       size="sm" 
                       variant="secondary" 
                       className="bg-black/60 text-white text-[10px] h-7"
-                      onClick={() => toggleAnimation()}
+                      onClick={toggleMedia}
                     >
                       <Play className="w-3 h-3 mr-1" /> Ver Video
                     </Button>
@@ -213,15 +204,14 @@ export default function WorkoutView({ profile }: { profile: UserProfile }) {
                     className="w-full h-full"
                     allowFullScreen
                   />
-                  {/* Overlay button to switch to animation if video fails */}
                   <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button 
                       size="sm" 
                       variant="secondary" 
                       className="bg-black/60 text-white text-[10px] h-7"
-                      onClick={() => toggleAnimation()}
+                      onClick={toggleMedia}
                     >
-                      <MonitorPlay className="w-3 h-3 mr-1" /> Ver Modelo 3D
+                      <ImageIcon className="w-3 h-3 mr-1" /> Ver Ilustración
                     </Button>
                   </div>
                   {videoUrls.length > 1 && (

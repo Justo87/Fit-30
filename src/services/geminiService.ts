@@ -18,13 +18,13 @@ export async function getDailyWorkout(profile: UserProfile): Promise<DailyWorkou
   
   El entrenamiento debe ser desafiante pero adaptado a su nivel (${profile.fitnessLevel}) y objetivo (${profile.motivation}).
   
-  REGLAS PARA VIDEOS:
-  - IMPORTANTE: Prioriza usar estos ejercicios de nuestra base de datos si encajan en el plan: ${exerciseList}.
-  - Si usas un ejercicio de la lista anterior, DEBES usar exactamente la URL de video asociada en el campo videoUrls (como primer elemento).
-  - PRIORIZA buscar videos de estilo "3D anatomical fitness animation" o "Muscle and Motion style" que muestren los músculos involucrados.
-  - El formato DEBE ser embed: https://www.youtube.com/embed/VIDEO_ID
-  - EVITA videos con música, trailers o que no permitan reproducción en otros sitios.
-  - PRIORIZA canales como "Fitness Volt", "Muscle and Motion", "Workout Program" que usan modelos 3D.
+  REGLAS CRÍTICAS PARA EJERCICIOS:
+  - DEBES elegir ejercicios de esta lista exacta: ${exerciseList}.
+  - El campo "name" del JSON DEBE ser EXACTAMENTE uno de los nombres de la lista anterior (ej: "Sentadillas", "Flexiones"). NO añadas texto extra al nombre.
+  - Usa la "imageUrl" y "videoUrl" correspondientes de nuestra base de datos para esos nombres.
+  
+  RETO DIARIO:
+  - NO incluyas el campo "dailyChallenge" en la respuesta, ya lo gestionamos nosotros.
   
   Toda la respuesta debe estar en ESPAÑOL.
   Retorna el entrenamiento en formato JSON.`;
@@ -48,13 +48,14 @@ export async function getDailyWorkout(profile: UserProfile): Promise<DailyWorkou
                 reps: { type: Type.STRING },
                 sets: { type: Type.NUMBER },
                 description: { type: Type.STRING },
+                imageUrl: { type: Type.STRING },
                 videoUrls: { 
                   type: Type.ARRAY, 
                   items: { type: Type.STRING },
                   description: "Lista de URLs de YouTube embed con la técnica del ejercicio" 
                 }
               },
-              required: ["name", "reps", "sets", "description", "videoUrls"]
+              required: ["name", "reps", "sets", "description", "videoUrls", "imageUrl"]
             }
           }
         },

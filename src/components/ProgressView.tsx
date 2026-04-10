@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { UserProfile, WeightLog } from '@/types';
+import { UserProfile, WeightLog, ChallengeLog } from '@/types';
 import { db, handleFirestoreError, OperationType } from '@/firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDocs, where } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Scale, TrendingDown, TrendingUp, History, Trash2, Edit2, X, Check } from 'lucide-react';
+import { Plus, Scale, TrendingDown, TrendingUp, History, Trash2, Edit2, X, Check, Star } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import PlanProgress from '@/components/PlanProgress';
 
 import {
   Dialog,
@@ -28,6 +29,19 @@ export default function ProgressView({ profile }: { profile: UserProfile }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editWeight, setEditWeight] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [challengeLogs, setChallengeLogs] = useState<ChallengeLog[]>([]);
+
+  useEffect(() => {
+    const path = `users/${profile.uid}/challengeLogs`;
+    const q = query(collection(db, path), orderBy('day', 'asc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChallengeLog));
+      setChallengeLogs(data);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+    });
+    return () => unsubscribe();
+  }, [profile.uid]);
 
   useEffect(() => {
     const path = `users/${profile.uid}/weightLogs`;
@@ -125,6 +139,8 @@ export default function ProgressView({ profile }: { profile: UserProfile }) {
         </Button>
       </div>
 
+      <PlanProgress currentDay={profile.planDay} />
+
       {showAdd && (
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
           <Card className="bg-neutral-900 border-neutral-800">
@@ -218,6 +234,43 @@ export default function ProgressView({ profile }: { profile: UserProfile }) {
               Registra tu peso para ver la gráfica
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-neutral-900 border-neutral-800 p-0 overflow-hidden">
+        <CardHeader className="p-4 flex flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-xs uppercase tracking-widest font-mono text-neutral-500">Historial de Retos</CardTitle>
+          <div className="flex items-center space-x-1">
+            <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+            <span className="text-xs font-bold text-white">{challengeLogs.length}</span>
+          </div>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
+          <div className="flex flex-wrap gap-2">
+            {Array.from({ length: 30 }).map((_, i) => {
+              const day = i + 1;
+              const isCompleted = challengeLogs.some(l => l.day === day);
+              const isFuture = day > profile.planDay;
+              
+              return (
+                <div 
+                  key={day} 
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center border transition-all ${
+                    isCompleted 
+                      ? 'bg-yellow-500 border-yellow-400 shadow-lg shadow-yellow-500/20' 
+                      : isFuture 
+                        ? 'bg-neutral-900 border-neutral-800 opacity-30' 
+                        : 'bg-neutral-800 border-neutral-700'
+                  }`}
+                >
+                  <Star className={`w-4 h-4 ${isCompleted ? 'text-white fill-white' : 'text-neutral-600'}`} />
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-neutral-500 mt-4 text-center italic">
+            Completa el reto diario para ganar una estrella cada día
+          </p>
         </CardContent>
       </Card>
 

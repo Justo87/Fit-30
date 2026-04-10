@@ -73,7 +73,7 @@ export default function ProfileView({ profile }: { profile: UserProfile }) {
         planDay: 1,
         startDate: new Date().toISOString()
       });
-      window.location.reload();
+      // No reload needed, onSnapshot in App.tsx will update the profile
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
     } finally {

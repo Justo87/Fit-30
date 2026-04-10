@@ -53,6 +53,19 @@
         "exercises": { "type": "array" }
       },
       "required": ["day", "title", "exercises"]
+    },
+    "ChallengeLog": {
+      "title": "Challenge Log",
+      "description": "Daily challenge completion tracking",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "day": { "type": "integer" },
+        "date": { "type": "string", "format": "date-time" },
+        "completed": { "type": "boolean" },
+        "title": { "type": "string" }
+      },
+      "required": ["uid", "day", "date", "completed", "title"]
     }
   },
   "firestore": {
@@ -71,6 +84,10 @@
     "/users/{userId}/workoutLogs/{logId}": {
       "schema": "WorkoutLog",
       "description": "User's workout history"
+    },
+    "/users/{userId}/challengeLogs/{logId}": {
+      "schema": "ChallengeLog",
+      "description": "User's daily challenge history"
     }
   }
 }

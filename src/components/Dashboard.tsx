@@ -3,20 +3,31 @@ import { UserProfile, DailyWorkout } from '@/types';
 import { getMotivation } from '@/services/geminiService';
 import { getOrGenerateWorkout } from '@/services/workoutService';
 import { db, handleFirestoreError, OperationType } from '@/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { EXERCISE_REPOSITORY, FALLBACK_IMAGE } from '@/constants/exercises';
+import { collection, query, where, getDocs, addDoc, deleteDoc, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'motion/react';
-import { Play, CheckCircle2, Flame, Trophy, Clock, Mic, Dumbbell as DumbbellIcon, RotateCcw } from 'lucide-react';
-import VoiceCoach from '@/components/VoiceCoach';
+import { Play, CheckCircle2, Flame, Trophy, Clock, Dumbbell as DumbbellIcon, RotateCcw, Apple, Droplets, Footprints, Activity, Zap, Star, Loader2 } from 'lucide-react';
+import PlanProgress from '@/components/PlanProgress';
+
+const ICON_MAP: Record<string, any> = {
+  'Apple': Apple,
+  'Droplets': Droplets,
+  'Footprints': Footprints,
+  'Stairs': Activity,
+  'Zap': Zap,
+  'Trophy': Trophy
+};
 
 export default function Dashboard({ profile, onStartWorkout }: { profile: UserProfile, onStartWorkout: () => void }) {
   const [workout, setWorkout] = useState<DailyWorkout | null>(null);
   const [motivation, setMotivation] = useState('');
   const [loading, setLoading] = useState(true);
-  const [showCoach, setShowCoach] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
+  const [isChallengeCompleted, setIsChallengeCompleted] = useState(false);
+  const [stars, setStars] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -29,7 +40,17 @@ export default function Dashboard({ profile, onStartWorkout }: { profile: UserPr
         const logsSnap = await getDocs(q);
         if (isMounted) setIsCompleted(!logsSnap.empty);
 
-        // 2. Use the new service that caches workouts in Firestore
+        // 2. Check if today's challenge is completed
+        const challengeRef = collection(db, 'users', profile.uid, 'challengeLogs');
+        const cq = query(challengeRef, where('day', '==', profile.planDay));
+        const challengeSnap = await getDocs(cq);
+        if (isMounted) setIsChallengeCompleted(!challengeSnap.empty);
+
+        // 3. Count total stars (completed challenges)
+        const allChallengesSnap = await getDocs(challengeRef);
+        if (isMounted) setStars(allChallengesSnap.size);
+
+        // 4. Use the new service that caches workouts in Firestore
         const w = await getOrGenerateWorkout(profile);
         if (!isMounted) return;
         setWorkout(w);
@@ -58,6 +79,35 @@ export default function Dashboard({ profile, onStartWorkout }: { profile: UserPr
     return () => { isMounted = false; };
   }, [profile.uid, profile.planDay, profile.dumbbellWeight, profile.fitnessLevel, profile.motivation]);
 
+  const handleToggleChallenge = async () => {
+    if (!workout?.dailyChallenge) return;
+    const path = `users/${profile.uid}/challengeLogs`;
+    try {
+      if (isChallengeCompleted) {
+        // Unmark (for simplicity we just don't allow it or delete the doc)
+        const q = query(collection(db, path), where('day', '==', profile.planDay));
+        const snap = await getDocs(q);
+        snap.forEach(async (d) => {
+          await deleteDoc(doc(db, path, d.id));
+        });
+        setIsChallengeCompleted(false);
+        setStars(prev => prev - 1);
+      } else {
+        await addDoc(collection(db, path), {
+          uid: profile.uid,
+          day: profile.planDay,
+          date: new Date().toISOString(),
+          completed: true,
+          title: workout.dailyChallenge.title
+        });
+        setIsChallengeCompleted(true);
+        setStars(prev => prev + 1);
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, path);
+    }
+  };
+
   const progress = Math.round(((profile.planDay || 1) / 30) * 100);
 
   return (
@@ -65,94 +115,63 @@ export default function Dashboard({ profile, onStartWorkout }: { profile: UserPr
       <section className="space-y-2">
         <div className="flex justify-between items-start">
           <h2 className="text-3xl font-bold tracking-tighter">Hola, {profile.name.split(' ')[0]} 👋</h2>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={() => setShowCoach(!showCoach)}
-            className={`rounded-full ${showCoach ? 'text-orange-500 bg-orange-500/10' : 'text-neutral-500'}`}
-          >
-            <Mic className="w-5 h-5" />
-          </Button>
         </div>
-        <p className="text-neutral-400 italic text-sm">"{motivation}"</p>
+        <div className="min-h-[1.5rem] flex items-center">
+          {motivation ? (
+            <p className="text-neutral-400 italic text-sm">"{motivation}"</p>
+          ) : (
+            <Loader2 className="w-4 h-4 animate-spin text-orange-500/50" />
+          )}
+        </div>
       </section>
 
-      <AnimatePresence>
-        {showCoach && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <VoiceCoach />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PlanProgress currentDay={profile.planDay} />
 
-      <div className="grid grid-cols-2 gap-4">
-        <Card className="bg-neutral-900 border-neutral-800">
-          <CardContent className="p-4 flex flex-col items-center justify-center space-y-3">
-            <div className="relative w-20 h-20 flex items-center justify-center">
-              <svg className="w-full h-full transform -rotate-90">
-                <circle
-                  cx="40"
-                  cy="40"
-                  r="36"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                  fill="transparent"
-                  className="text-neutral-800"
-                />
-                <motion.circle
-                  cx="40"
-                  cy="40"
-                  r="36"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                  fill="transparent"
-                  strokeDasharray={226}
-                  initial={{ strokeDashoffset: 226 }}
-                  animate={{ strokeDashoffset: 226 - (226 * (profile.planDay / 30)) }}
-                  transition={{ duration: 1, ease: "easeOut" }}
-                  className="text-orange-500"
-                />
-              </svg>
-              <span className="absolute text-2xl font-bold text-white">{profile.planDay}</span>
+      {workout?.dailyChallenge && (
+        <Card className={`border-orange-500/20 overflow-hidden transition-all ${isChallengeCompleted ? 'bg-orange-500/20' : 'bg-orange-500/10'}`}>
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-lg transition-all ${isChallengeCompleted ? 'bg-green-500 shadow-green-500/20' : 'bg-orange-500 shadow-orange-500/20'}`}>
+                {isChallengeCompleted ? <CheckCircle2 className="w-6 h-6 text-white" /> : React.createElement(ICON_MAP[workout.dailyChallenge.icon] || Zap, { className: "w-6 h-6 text-white" })}
+              </div>
+              <div>
+                <h4 className="text-orange-500 text-[10px] font-bold uppercase tracking-widest">Reto del Día</h4>
+                <h3 className="text-white font-bold">{workout.dailyChallenge.title}</h3>
+                <p className="text-neutral-400 text-xs">{workout.dailyChallenge.description}</p>
+              </div>
             </div>
-            <span className="text-[10px] text-neutral-400 uppercase font-bold tracking-widest">Días Racha</span>
+            <Button 
+              size="sm" 
+              onClick={handleToggleChallenge}
+              className={`rounded-xl font-bold ${isChallengeCompleted ? 'bg-neutral-800 text-neutral-400' : 'bg-white text-black'}`}
+            >
+              {isChallengeCompleted ? 'Completado' : 'Hecho'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        <Card className="bg-neutral-900 border-neutral-800">
+          <CardContent className="p-4 flex items-center space-x-3">
+            <div className="w-10 h-10 bg-orange-500/10 rounded-full flex items-center justify-center">
+              <Trophy className="w-5 h-5 text-orange-500" />
+            </div>
+            <div>
+              <p className="text-[10px] text-neutral-500 uppercase font-bold tracking-widest leading-none mb-1">Objetivo</p>
+              <p className="text-lg font-bold text-white leading-none">{profile.weightGoal} <span className="text-[10px] font-normal text-neutral-500">kg</span></p>
+            </div>
           </CardContent>
         </Card>
         <Card className="bg-neutral-900 border-neutral-800">
-          <CardContent className="p-4 flex flex-col items-center justify-center space-y-3">
-            <div className="relative w-20 h-20 flex items-center justify-center">
-              <svg className="w-full h-full transform -rotate-90">
-                <circle
-                  cx="40"
-                  cy="40"
-                  r="36"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                  fill="transparent"
-                  className="text-neutral-800"
-                />
-                <motion.circle
-                  cx="40"
-                  cy="40"
-                  r="36"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                  fill="transparent"
-                  strokeDasharray={226}
-                  initial={{ strokeDashoffset: 226 }}
-                  animate={{ strokeDashoffset: 226 - (226 * (progress / 100)) }}
-                  transition={{ duration: 1, ease: "easeOut" }}
-                  className="text-yellow-500"
-                />
-              </svg>
-              <span className="absolute text-2xl font-bold text-white">{progress}%</span>
+          <CardContent className="p-4 flex items-center space-x-3">
+            <div className="w-10 h-10 bg-yellow-500/10 rounded-full flex items-center justify-center">
+              <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
             </div>
-            <span className="text-[10px] text-neutral-400 uppercase font-bold tracking-widest">Completado</span>
+            <div>
+              <p className="text-[10px] text-neutral-500 uppercase font-bold tracking-widest leading-none mb-1">Estrellas</p>
+              <p className="text-lg font-bold text-white leading-none">{stars}</p>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -164,7 +183,9 @@ export default function Dashboard({ profile, onStartWorkout }: { profile: UserPr
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <div>
             <CardTitle className="text-neutral-400 text-xs uppercase tracking-widest font-mono">Entrenamiento de Hoy</CardTitle>
-            <h3 className="text-2xl font-bold text-white">{workout?.title || "Cargando..."}</h3>
+            <h3 className="text-2xl font-bold text-white">
+              {workout?.title || <Loader2 className="w-5 h-5 animate-spin text-orange-500/50" />}
+            </h3>
           </div>
           {isCompleted && (
             <div className="bg-green-500/10 text-green-500 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full flex items-center">
@@ -184,16 +205,33 @@ export default function Dashboard({ profile, onStartWorkout }: { profile: UserPr
             </div>
           </div>
           
-          <div className="space-y-2">
-            {workout?.exercises.slice(0, 3).map((ex, i) => (
-              <div key={i} className="flex items-center space-x-2 text-sm text-neutral-300">
-                <CheckCircle2 className={`w-4 h-4 ${isCompleted ? 'text-green-500' : 'text-neutral-700'}`} />
-                <span>{ex.name}</span>
-              </div>
-            ))}
-            {workout && workout.exercises.length > 3 && (
-              <p className="text-xs text-neutral-500">...y {workout.exercises.length - 3} más</p>
-            )}
+          <div className="space-y-3">
+            {workout?.exercises.map((ex, i) => {
+              // Better matching: check if the repo key is inside the exercise name or vice versa
+              const exerciseNameLower = ex.name.toLowerCase();
+              const repoKey = Object.keys(EXERCISE_REPOSITORY).find(key => {
+                const keyLower = key.toLowerCase();
+                return exerciseNameLower.includes(keyLower) || keyLower.includes(exerciseNameLower);
+              });
+              
+              const repoInfo = repoKey ? EXERCISE_REPOSITORY[repoKey] : null;
+              const imageUrl = repoInfo?.imageUrl || ex.imageUrl || FALLBACK_IMAGE;
+              
+              return (
+                <div key={i} className="flex items-center justify-between p-3 bg-neutral-800/50 rounded-xl border border-neutral-800">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-neutral-800 shrink-0">
+                      <img src={imageUrl} alt={ex.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-white leading-tight">{ex.name}</span>
+                      <span className="text-[10px] text-neutral-500 uppercase font-bold">{ex.sets} x {ex.reps}</span>
+                    </div>
+                  </div>
+                  <CheckCircle2 className={`w-5 h-5 ${isCompleted ? 'text-green-500' : 'text-neutral-700'}`} />
+                </div>
+              );
+            })}
           </div>
 
           <Button 
@@ -216,14 +254,6 @@ export default function Dashboard({ profile, onStartWorkout }: { profile: UserPr
           </Button>
         </CardContent>
       </Card>
-
-      <section className="space-y-3">
-        <div className="flex justify-between items-end">
-          <h3 className="text-sm font-bold uppercase tracking-widest text-neutral-400">Progreso del Plan</h3>
-          <span className="text-xs font-mono text-orange-500">{profile.planDay}/30</span>
-        </div>
-        <Progress value={progress} className="h-2 bg-neutral-800" />
-      </section>
     </div>
   );
 }
