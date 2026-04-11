@@ -15,6 +15,7 @@ import WorkoutView from '@/components/WorkoutView';
 import ProgressView from '@/components/ProgressView';
 import ProfileView from '@/components/ProfileView';
 import Onboarding from '@/components/Onboarding';
+import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -259,6 +260,8 @@ export default function App() {
         <NavButton active={activeTab === 'progress'} onClick={() => setActiveTab('progress')} icon={<Scale className="w-6 h-6" />} label="Progreso" />
         <NavButton active={activeTab === 'profile'} onClick={() => setActiveTab('profile')} icon={<UserIcon className="w-6 h-6" />} label="Perfil" />
       </nav>
+
+      <PWAInstallPrompt />
     </div>
   );
 }

@@ -1,3 +1,4 @@
+// FIT30 Dashboard - Updated with new progress bar and removed coach
 import React, { useState, useEffect } from 'react';
 import { UserProfile, DailyWorkout } from '@/types';
 import { getMotivation } from '@/services/geminiService';
