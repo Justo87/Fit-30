@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Download, X, Smartphone, CheckCircle2 } from 'lucide-react';
+import { Download, X, Smartphone, CheckCircle2, Dumbbell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -77,7 +77,7 @@ export default function PWAInstallPrompt() {
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center space-x-4">
                 <div className="w-14 h-14 bg-orange-500 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/20 shrink-0">
-                  <Download className="w-7 h-7 text-white" />
+                  <Dumbbell className="w-8 h-8 text-white" />
                 </div>
                 <div>
                   <h3 className="text-white font-bold text-lg leading-tight">Instalar FIT30</h3>
